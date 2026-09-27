@@ -1,0 +1,13 @@
+﻿# data
+*.csv
+gadm41_NGA_1.json
+
+# python
+__pycache__/
+.ipynb_checkpoints/
+venv/
+.venv/
+
+# models
+*.pkl
+*.joblib
