@@ -1,0 +1,146 @@
+================================================================
+CHAPTER 4 RESULTS
+================================================================
+Test set                : 874 loans, 190 defaults (21.74%)
+Cost-derived threshold  : p* = 0.1837 (LGD = 1.0)
+Best model by cost      : CatBoost at t = 0.1837
+
+--- Discrimination (test) ---
+   Model  ROC-AUC  PR-AUC     KS
+ XGBoost   0.7254  0.4709 0.3749
+CatBoost   0.7201  0.4571 0.3667
+      RF   0.7157  0.4450 0.3661
+LightGBM   0.7142  0.4358 0.3585
+      LR   0.7075  0.4345 0.3664
+
+--- Calibration (test) ---
+   Model   Brier  Log loss  Mean p
+ XGBoost 0.14916   0.46770  0.2158
+CatBoost 0.14939   0.46889  0.2157
+      RF 0.14975   0.46926  0.2184
+LightGBM 0.15070   0.47014  0.2195
+      LR 0.15162   0.47343  0.2130
+
+--- Cost by model and threshold ---
+Threshold    default     p_star  empirical  best saving vs approve-all
+Model                                                                 
+LR         2705750.0  2062625.0  2146625.0                    827375.0
+RF         2546500.0  2045912.0  1941450.0                    948550.0
+XGBoost    2609000.0  2011162.0  2035162.0                    878838.0
+LightGBM   2689500.0  1986312.0  2102562.0                    903688.0
+CatBoost   2544000.0  1904350.0  2153450.0                    985650.0
+
+--- Normalised cost (1.0 = approve every loan) ---
+Threshold  default  p_star  empirical
+Model                                
+LR          0.9362  0.7137     0.7428
+RF          0.8811  0.7079     0.6718
+XGBoost     0.9028  0.6959     0.7042
+LightGBM    0.9306  0.6873     0.7275
+CatBoost    0.8803  0.6589     0.7451
+
+--- Full cost / classification results ---
+   Model Threshold      t  TP  FP  TN  FN  Rejected  Recall  Precision     F1  Total cost  Cost/loan
+      LR   default 0.5000  26  27 657 164        53  0.1368     0.4906 0.2140   2705750.0     3095.8
+      LR    p_star 0.1837 126 253 431  64       379  0.6632     0.3325 0.4429   2062625.0     2360.0
+      LR empirical 0.1500 149 386 298  41       535  0.7842     0.2785 0.4110   2146625.0     2456.1
+      RF   default 0.5000  41  31 653 149        72  0.2158     0.5694 0.3130   2546500.0     2913.6
+      RF    p_star 0.1837 122 209 475  68       331  0.6421     0.3686 0.4683   2045912.0     2340.9
+      RF empirical 0.1700 138 264 420  52       402  0.7263     0.3433 0.4662   1941450.0     2221.3
+ XGBoost   default 0.5000  34  27 657 156        61  0.1789     0.5574 0.2709   2609000.0     2985.1
+ XGBoost    p_star 0.1837 124 201 483  66       325  0.6526     0.3815 0.4816   2011162.0     2301.1
+ XGBoost empirical 0.1900 117 178 506  73       295  0.6158     0.3966 0.4825   2035162.0     2328.6
+LightGBM   default 0.5000  24  21 663 166        45  0.1263     0.5333 0.2043   2689500.0     3077.2
+LightGBM    p_star 0.1837 135 275 409  55       410  0.7105     0.3293 0.4500   1986312.0     2272.7
+LightGBM empirical 0.2300 110 166 518  80       276  0.5789     0.3986 0.4721   2102562.0     2405.7
+CatBoost   default 0.5000  39  22 662 151        61  0.2053     0.6393 0.3108   2544000.0     2910.8
+CatBoost    p_star 0.1837 123 192 492  67       315  0.6474     0.3905 0.4871   1904350.0     2178.9
+CatBoost empirical 0.1500 150 373 311  40       523  0.7895     0.2868 0.4208   2153450.0     2463.9
+
+--- LGD sensitivity: total cost ---
+LGD           0.25       0.50       0.75       1.00
+Model                                              
+CatBoost  669000.0  1277188.0  1724312.0  1904350.0
+LR        721250.0  1267375.0  1600812.0  2062625.0
+LightGBM  703500.0  1288250.0  1706062.0  1986312.0
+RF        690500.0  1244500.0  1730312.0  2045912.0
+XGBoost   703500.0  1261500.0  1741788.0  2011162.0
+
+--- LGD sensitivity: rejection rate ---
+LGD        0.25   0.50   0.75   1.00
+Model                               
+CatBoost  0.080  0.160  0.211  0.360
+LR        0.069  0.162  0.276  0.434
+LightGBM  0.074  0.192  0.312  0.469
+RF        0.093  0.167  0.243  0.379
+XGBoost   0.080  0.153  0.229  0.372
+
+--- DeLong ---
+ Model A  Model B  AUC A  AUC B  Difference      z  p-value Significant
+      LR       RF 0.7075 0.7157     -0.0082 -0.587   0.5569          no
+      LR  XGBoost 0.7075 0.7254     -0.0180 -1.338   0.1808          no
+      LR LightGBM 0.7075 0.7142     -0.0068 -0.447   0.6548          no
+      LR CatBoost 0.7075 0.7201     -0.0127 -0.988   0.3230          no
+      RF  XGBoost 0.7157 0.7254     -0.0098 -1.368   0.1714          no
+      RF LightGBM 0.7157 0.7142      0.0014  0.166   0.8684          no
+      RF CatBoost 0.7157 0.7201     -0.0045 -0.566   0.5713          no
+ XGBoost LightGBM 0.7254 0.7142      0.0112  1.205   0.2283          no
+ XGBoost CatBoost 0.7254 0.7201      0.0053  0.541   0.5887          no
+LightGBM CatBoost 0.7142 0.7201     -0.0059 -0.484   0.6283          no
+
+--- SHAP importance ---
+                   Feature  Mean |SHAP|
+            prev_late_rate     0.259499
+       prev_days_late_mean     0.171793
+           interest_margin     0.094258
+         bank_account_type     0.093754
+ employment_status_clients     0.048487
+           prev_amount_max     0.041924
+      days_since_last_loan     0.041064
+           age_at_approval     0.038772
+           prev_loan_count     0.033409
+                    region     0.033053
+        prev_termdays_mean     0.031889
+          prev_amount_mean     0.031724
+                  termdays     0.027030
+         bank_name_clients     0.021659
+level_of_education_clients     0.014840
+                loanamount     0.012952
+              was_referred     0.003533
+          has_demographics     0.002373
+               has_history     0.000362
+
+--- Fairness: region ---
+  Attribute         Group   n  Defaults  Rejection rate  Approval rate    TPR    FPR Reliable
+region_fair    South West 434        91          0.3664         0.6336 0.6154 0.3003      yes
+region_fair       Unknown 233        54          0.3519         0.6481 0.6667 0.2570      yes
+region_fair North Central  92        15          0.3370         0.6630 0.7333 0.2597      yes
+region_fair   South South  77        17          0.3377         0.6623 0.7059 0.2333      yes
+region_fair Other regions  38        13          0.4474         0.5526 0.6154 0.3600      yes
+
+--- Fairness: age ---
+Attribute   Group   n  Defaults  Rejection rate  Approval rate    TPR    FPR Reliable
+ age_band   25-34 387        81          0.3463         0.6537 0.6420 0.2680      yes
+ age_band Unknown 228        53          0.3553         0.6447 0.6604 0.2629      yes
+ age_band     35+ 218        45          0.3394         0.6606 0.6444 0.2601      yes
+ age_band   18-24  41        11          0.6341         0.3659 0.6364 0.6333      yes
+
+--- Fairness summary ---
+Attribute                      region_fair  age_band
+Demographic parity difference       0.1104    0.2947
+Disparate impact ratio              0.8335    0.5539
+Equal opportunity difference        0.1179    0.0240
+Equalised odds difference           0.1267    0.3732
+Groups used                         5.0000    4.0000
+Groups excluded (too small)         0.0000    0.0000
+
+--- Mitigation ---
+  Attribute                Constraint  Rejected  Cost before  Cost after  Increase  Increase %  DP diff after  EO diff after
+region_fair            equalized_odds        12    1904350.0   2858000.0  953650.0       50.08         0.0263         0.0769
+region_fair true_positive_rate_parity        48    1904350.0   2646500.0  742150.0       38.97         0.0737         0.2088
+   age_band            equalized_odds        71    1904350.0   2489000.0  584650.0       30.70         0.0686         0.2716
+   age_band true_positive_rate_parity        70    1904350.0   2517500.0  613150.0       32.20         0.0468         0.1930
+
+Approve every loan :      2,890,000
+Reject every loan  :      2,331,700
+Best achieved      :      1,904,350
