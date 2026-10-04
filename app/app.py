@@ -1,7 +1,7 @@
 """
 Cost-sensitive, explainable credit default prediction — demonstration app.
 
-Final-year dissertation, BSc Data Science, Miva Open University.
+My Final-year dissertation, BSc Data Science, Miva Open University.
 Model: CatBoost, calibrated with Platt scaling, decision threshold derived from
 the cost matrix (Elkan, 2001).
 
@@ -37,13 +37,52 @@ LEVELS = B["cat_levels"]
 STATS = B["num_stats"]
 
 
-def default_of(col):
-    """Starting value for a numeric field."""
+def default_of(col, lo=None, hi=None):
+    """Starting value for a numeric field, clamped to the widget's bounds."""
+    v = None
     if st.session_state.get("example"):
         v = st.session_state["example"]["values"].get(col)
-        if v is not None:
-            return float(v)
-    return float(STATS[col]["median"])
+    v = float(STATS[col]["median"]) if v is None else float(v)
+    if lo is not None:
+        v = max(v, lo)
+    if hi is not None:
+        v = min(v, hi)
+    return v
+
+
+# ----------------------------------------------------------------- customer lookup
+LOOKUP_FILE = "customer_lookup.csv"
+
+
+@st.cache_data
+def load_lookup():
+    """Engineered features for test-set customers, keyed by customer ID."""
+    try:
+        df = pd.read_csv(LOOKUP_FILE, dtype={"customerid": str})
+    except FileNotFoundError:
+        return None
+    df["customerid"] = df["customerid"].str.strip()
+    return df.set_index("customerid")
+
+
+def lookup_customer(cid):
+    """Return the customer's stored record in the same shape as a preset example."""
+    df = load_lookup()
+    if df is None or cid not in df.index:
+        return None
+    rec = df.loc[cid]
+    if isinstance(rec, pd.DataFrame):          # duplicate IDs: take the latest row
+        rec = rec.iloc[-1]
+    values = {k: (None if pd.isna(v) else v) for k, v in rec.items()}
+    actual = values.pop("actual", None)
+    return {"label": f"Customer {cid}", "values": values,
+            "actual": actual, "source": "lookup"}
+
+
+def history_locked():
+    """Repayment history is read-only when it came from the lender's records."""
+    ex = st.session_state.get("example")
+    return bool(ex and ex.get("source") == "lookup")
 
 
 def cat_default(col):
@@ -52,6 +91,15 @@ def cat_default(col):
         if v in LEVELS[col]:
             return LEVELS[col].index(v)
     return 0
+
+
+def rate_default():
+    """Starting interest rate (%): the loaded example's own margin, else the median."""
+    if st.session_state.get("example"):
+        v = st.session_state["example"]["values"].get("interest_margin")
+        if v is not None:
+            return float(v) * 100
+    return float(B["m_median"]) * 100
 
 
 # ----------------------------------------------------------------- header
@@ -82,6 +130,38 @@ furthest from the model's average, computed with SHAP (Lundberg & Lee, 2017).
         """
     )
 
+# ----------------------------------------------------------------- lookup UI
+st.sidebar.header("Existing customer")
+if load_lookup() is None:
+    st.sidebar.caption(f"Customer lookup unavailable: `{LOOKUP_FILE}` not found.")
+else:
+    cid = st.sidebar.text_input("Customer ID", key="cid",
+                                placeholder="Paste a customer ID from the test set")
+    b1, b2 = st.sidebar.columns(2)
+    go = b1.button("Look up", use_container_width=True)
+    rnd = b2.button("Random", use_container_width=True,
+                    help="Load a random customer from the test set")
+    if rnd:
+        found = lookup_customer(str(load_lookup().sample(1).index[0]))
+        st.session_state["example"] = found
+        st.rerun()
+    if go:
+        clean = cid.strip().strip('"').strip("'")
+        if not clean:
+            st.sidebar.warning("Enter a customer ID first.")
+        else:
+            found = lookup_customer(clean)
+            if found:
+                st.session_state["example"] = found
+                st.rerun()
+            else:
+                st.sidebar.error(f"No customer with ID `{clean}` in the records.")
+    st.sidebar.caption(
+        "Repayment history is computed from the lender's loan records, "
+        "so it is filled in and locked when a customer is looked up."
+    )
+st.sidebar.divider()
+
 # ----------------------------------------------------------------- examples
 st.sidebar.header("Example borrowers")
 st.sidebar.caption("Load a real case from the test set to populate the form.")
@@ -92,10 +172,9 @@ for i, ex in enumerate(B["examples"]):
 
 if st.session_state.get("example"):
     ex = st.session_state["example"]
-    st.sidebar.success(
-        f"Loaded: {ex['label']}\n\n"
-        f"Actual outcome: {'defaulted' if ex['actual'] else 'repaid'}"
-    )
+    outcome = ("" if ex.get("actual") is None else
+               f"\n\nActual outcome: {'defaulted' if int(ex['actual']) else 'repaid'}")
+    st.sidebar.success(f"Loaded: {ex['label']}{outcome}")
     if st.sidebar.button("Clear", use_container_width=True):
         del st.session_state["example"]
         st.rerun()
@@ -106,57 +185,79 @@ st.sidebar.caption(
     "Demonstration only. Not for real lending decisions."
 )
 
-# ----------------------------------------------------------------- the form
-with st.form("application"):
+# ----------------------------------------------------------------- loan details
+# Kept outside the form so total due recalculates live as the inputs change
+# (widgets inside st.form only update the page on submit).
+with st.container(border=True):
     st.subheader("Loan details")
     c1, c2, c3 = st.columns(3)
     loanamount = c1.number_input(
         "Loan amount (₦)", min_value=1000.0, max_value=200000.0,
-        value=default_of("loanamount"), step=1000.0)
-    totaldue = c2.number_input(
-        "Total due (₦)", min_value=1000.0, max_value=300000.0,
-        value=float(default_of("loanamount") * (1 + B["m_median"])), step=1000.0,
-        help="Principal plus interest. Determines the interest margin.")
+        value=default_of("loanamount", 1000.0, 200000.0), step=1000.0)
+    rate_pct = c2.number_input(
+        "Interest rate (%)", min_value=0.0, max_value=100.0,
+        value=rate_default(), step=0.5,
+        help="Flat interest charged on the principal for the whole term. "
+             "Total due is calculated from this.")
     termdays = c3.number_input(
         "Term (days)", min_value=1.0, max_value=365.0,
-        value=default_of("termdays"), step=1.0)
+        value=default_of("termdays", 1.0, 365.0), step=1.0)
 
-    margin = (totaldue - loanamount) / loanamount if loanamount else 0.0
-    st.caption(f"Interest margin: **{margin:.4f}** ({margin*100:.2f}%)")
+    margin = rate_pct / 100
+    totaldue = loanamount * (1 + margin)
+    st.caption(
+        f"Total due: **₦{totaldue:,.2f}** · "
+        f"interest margin **{margin:.4f}** ({margin*100:.2f}%)"
+    )
 
+# ----------------------------------------------------------------- the form
+with st.form("application"):
+    locked = history_locked()
     st.subheader("Repayment history")
+    if locked:
+        st.caption("From the lender's loan records for this customer (read-only).")
+    else:
+        st.caption("For a real application these come from the lender's records; "
+                   "here you can edit them to explore scenarios.")
     h1, h2, h3, h4 = st.columns(4)
     prev_loan_count = h1.number_input(
         "Prior loans", min_value=0.0, max_value=50.0,
-        value=default_of("prev_loan_count"), step=1.0)
+        value=default_of("prev_loan_count", 0.0, 50.0), step=1.0,
+        disabled=locked)
     prev_late_rate = h2.number_input(
         "Share repaid late", min_value=0.0, max_value=1.0,
-        value=default_of("prev_late_rate"), step=0.01,
+        value=default_of("prev_late_rate", 0.0, 1.0), step=0.01,
+        disabled=locked,
         help="Proportion of prior loans whose first repayment fell after the due date.")
     prev_days_late_mean = h3.number_input(
         "Mean days late", min_value=-60.0, max_value=400.0,
-        value=default_of("prev_days_late_mean"), step=1.0,
+        value=default_of("prev_days_late_mean", -60.0, 400.0), step=1.0,
+        disabled=locked,
         help="Negative means repaid early on average.")
     days_since_last_loan = h4.number_input(
         "Days since last loan", min_value=0.0, max_value=1000.0,
-        value=default_of("days_since_last_loan"), step=1.0)
+        value=default_of("days_since_last_loan", 0.0, 1000.0), step=1.0,
+        disabled=locked)
 
     h5, h6, h7 = st.columns(3)
     prev_amount_mean = h5.number_input(
         "Mean prior amount (₦)", min_value=0.0, max_value=200000.0,
-        value=default_of("prev_amount_mean"), step=1000.0)
+        value=default_of("prev_amount_mean", 0.0, 200000.0), step=1000.0,
+        disabled=locked)
     prev_amount_max = h6.number_input(
         "Largest prior amount (₦)", min_value=0.0, max_value=200000.0,
-        value=default_of("prev_amount_max"), step=1000.0)
+        value=default_of("prev_amount_max", 0.0, 200000.0), step=1000.0,
+        disabled=locked)
     prev_termdays_mean = h7.number_input(
         "Mean prior term (days)", min_value=0.0, max_value=365.0,
-        value=default_of("prev_termdays_mean"), step=1.0)
+        value=default_of("prev_termdays_mean", 0.0, 365.0), step=1.0,
+        disabled=locked)
 
     st.subheader("Borrower")
     d1, d2, d3 = st.columns(3)
     age = d1.number_input(
         "Age at application", min_value=18.0, max_value=80.0,
-        value=default_of("age_at_approval"), step=1.0)
+        value=default_of("age_at_approval", 18.0, 80.0), step=1.0)
     bank_account_type = d2.selectbox(
         "Bank account type", LEVELS["bank_account_type"],
         index=cat_default("bank_account_type"))
