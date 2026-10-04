@@ -664,31 +664,43 @@ This is a genuine limitation and a natural direction for future work.
 
 ## Chapter 3 edits still outstanding
 
-- 3.5.3: GPS points outside Nigeria — change 31 to **36** (the bounding-box check
-  gives 31; the GADM point-in-polygon join, which actually assigned the Unknown
-  region, gives 36).
-- 3.5.1: "1,099(25%)" → 25.16%.
-- 3.5.2: add a sentence on `referredby` being reduced to a binary indicator.
-- 3.6.2: replace the `[name source]` placeholder with the GADM citation; add the
-  collapsed-region justification.
-- Table 3.3: add `was_referred`, `has_history`, `region_fair`, `age_band`; remove
-  `bank_branch_clients` and `totaldue` if listed; amend the `region` row to "one
-  of six geopolitical zones".
-- New section for the train/validation/test split, between 3.5.3 and encoding;
-  renumber encoding to 3.5.5.
-- **Table 3.5 is used twice** — LGD sensitivity (3.8.4) and hyperparameter search
-  spaces (3.9.3). Renumber one, and everything after it.
-- 3.7: remove the brackets around 3.59.
-- 3.8.1: the cost matrix has lost its multiplication signs and the bottom-right
-  cell reads "01" instead of 0; the paragraph below reads "A false negative ( )".
-- 3.9.3: state Optuna, 50 trials per model, and log loss as the objective.
-- 3.9.4: state Platt scaling and why isotonic was rejected.
-- 3.13.1: age bands and region groups contradict 3.6.2 — must match
-  18-24 / 25-34 / 35+ / Unknown and the five region groups.
-- 3.13.5: the ThresholdOptimizer mechanism sentence was lost; restore it.
-- 3.15: Python 3.13.7, VS Code with the Jupyter extension, the filled library
-  table, i7-10750H / 32 GB, repository link.
-- DeLong citation: `(DeLong, DeLong & Clarke-Pearson, 1988)` → `(DeLong et al.,
-  1988)` for APA 7th.
-- CatBoost tuning took 8,199 seconds single-threaded, 5,326 seconds with
-  `thread_count=-1`. Worth recording in 3.15.
+**Completed 4 October 2026.** All items below were applied except where noted.
+
+| Section | Edit | Status |
+|---|---|---|
+| Table numbering | Sensitivity table created as 3.5; hyperparameters → 3.6; software libraries → 3.7 | done |
+| 3.5.1 | "1,099(25%)" → "1,099 (25.16%)" | done |
+| 3.5.2 | Added treatment of bank_branch_clients (dropped) and referredby (reduced to was_referred) | done |
+| 3.5.3 | GPS outside Nigeria 31 → 36, with the bounding-box vs polygon explanation | done |
+| 3.5.4 | Forward reference to 3.9.1; standardisation sentence corrected to match the code; encoded feature count (19 → 55) | done |
+| 3.7 | Brackets removed from 3.59; class-weight comparison sentence deleted (never run) | done |
+| 3.8.1 | Cost matrix bottom-right cell "01" → "0" | done |
+| 3.9.1 | Exact split counts and default rates; placeholder removed | done |
+| 3.9.3 | Optuna, 50 trials, log loss objective stated, with reasoning | done |
+| 3.9.4 | Platt scaling stated; isotonic considered and rejected, with reason | done |
+| 3.11.5 | DeLong citation → (DeLong et al., 1988) for APA 7th | done |
+| 3.13.1 | Age bands and region groups aligned with 3.6.2 | done |
+| 3.13.5 | ThresholdOptimizer mechanism restored; equalised odds named as primary | done |
+| 3.15 | Python 3.13.7, VS Code + Jupyter extension, library versions, i7-10750H / 32 GB | done |
+
+**Corrections to earlier notes in this file:**
+
+- The cost matrix in 3.8.1 had **not** lost its multiplication signs. The plain-text
+  copy stripped the formatting; the Word table renders correctly. Only the "01"
+  cell was wrong.
+- A **new section for the split was not needed** — 3.9.1 Data partitioning already
+  existed. The real issue was that 3.5.4 referred to the training set before the
+  reader had been told what it was, fixed with a forward reference.
+
+**Still outstanding**
+
+- **3.15, Streamlit version** — pending the app being built.
+- **3.15, repository link** — github.com/ToluDan/loan_prediction_explainablity_model
+  (note "explainablity" is misspelled in the repository name; easier to rename now
+  than after it is cited).
+- **3.14** — describes the deployed application. Either build the app or keep the
+  present-tense design framing currently in place.
+- **CatBoost tuning time** — 8,199 seconds single-threaded, 5,326 seconds with
+  `thread_count=-1`. Worth recording in 3.15 as a reproducibility note.
+- **Optional forward reference in 3.7** to Sections 4.2 and 4.3, to be added once
+  Chapter 4's numbering is settled.
