@@ -255,9 +255,14 @@ with st.form("application"):
 
     st.subheader("Borrower")
     d1, d2, d3 = st.columns(3)
+    _ex = st.session_state.get("example")
+    _age_missing = bool(_ex) and _ex["values"].get("age_at_approval") is None
+    age_unknown = d1.checkbox("Age not recorded", value=_age_missing,
+                              help="Leave the age missing, as in the lender's records.")
     age = d1.number_input(
         "Age at application", min_value=18.0, max_value=80.0,
-        value=default_of("age_at_approval", 18.0, 80.0), step=1.0)
+        value=default_of("age_at_approval", 18.0, 80.0), step=1.0,
+        disabled=age_unknown)
     bank_account_type = d2.selectbox(
         "Bank account type", LEVELS["bank_account_type"],
         index=cat_default("bank_account_type"))
@@ -306,6 +311,15 @@ if submitted:
         "level_of_education_clients": level_of_education_clients,
         "region": region,
     }
+
+    # Missing values must reach the model as missing, as they did in training,
+    # not as medians filled in by the form.
+    if age_unknown:
+        values["age_at_approval"] = np.nan
+    if prev_loan_count == 0:
+        for c in ("prev_amount_mean", "prev_amount_max", "prev_late_rate",
+                  "prev_days_late_mean", "prev_termdays_mean", "days_since_last_loan"):
+            values[c] = np.nan
 
     row = pd.DataFrame([[values[c] for c in FEATURES]], columns=FEATURES)
     for c in CAT:
