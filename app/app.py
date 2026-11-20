@@ -239,6 +239,8 @@ with st.form("application"):
         value=default_of("days_since_last_loan", 0.0, 1000.0), step=1.0,
         disabled=locked)
 
+    st.caption("With **Prior loans** set to 0, the other history fields are ignored "
+               "and treated as missing, as for a first-time borrower.")
     h5, h6, h7 = st.columns(3)
     prev_amount_mean = h5.number_input(
         "Mean prior amount (₦)", min_value=0.0, max_value=200000.0,
@@ -288,6 +290,17 @@ with st.form("application"):
                                       use_container_width=True)
 
 # ----------------------------------------------------------------- predict
+HISTORY_COLS = ("prev_amount_mean", "prev_amount_max", "prev_late_rate",
+                "prev_days_late_mean", "prev_termdays_mean", "days_since_last_loan")
+
+
+def show_value(feature, v):
+    """Readable value for the explanation; missing values are named, not 'nan'."""
+    if isinstance(v, float) and np.isnan(v):
+        return "no prior loans" if feature in HISTORY_COLS else "not recorded"
+    return f"{v:.4g}" if isinstance(v, float) else v
+
+
 if submitted:
     values = {
         "loanamount": loanamount,
@@ -369,8 +382,7 @@ if submitted:
 
         for _, r in contrib.iterrows():
             direction = "increases" if r["Contribution"] > 0 else "reduces"
-            val = (f"{r['Value']:.4g}" if isinstance(r["Value"], float)
-                   else r["Value"])
+            val = show_value(r["Feature"], r["Value"])
             st.markdown(
                 f"**{r['Feature']}** = `{val}` — {direction} estimated risk "
                 f"({r['Contribution']:+.3f} in log-odds)"
@@ -379,7 +391,7 @@ if submitted:
         with st.expander("All feature contributions"):
             full = (pd.DataFrame({"Feature": FEATURES,
                                   "Contribution": sv,
-                                  "Value": [values[c] for c in FEATURES]})
+                                  "Value": [str(show_value(c, values[c])) for c in FEATURES]})
                     .assign(abs_c=lambda d: d["Contribution"].abs())
                     .sort_values("abs_c", ascending=False)
                     .drop(columns="abs_c"))
