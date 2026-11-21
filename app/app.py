@@ -12,6 +12,9 @@ import joblib
 import numpy as np
 import pandas as pd
 import streamlit as st
+from pathlib import Path
+
+APP_DIR = Path(__file__).parent
 
 st.set_page_config(page_title="Credit Default Risk", page_icon="•", layout="wide")
 
@@ -19,7 +22,7 @@ st.set_page_config(page_title="Credit Default Risk", page_icon="•", layout="wi
 # ----------------------------------------------------------------- loading
 @st.cache_resource
 def load_bundle():
-    return joblib.load("model_bundle.joblib")
+    return joblib.load(APP_DIR / "model_bundle.joblib")
 
 
 @st.cache_resource
@@ -51,7 +54,7 @@ def default_of(col, lo=None, hi=None):
 
 
 # ----------------------------------------------------------------- customer lookup
-LOOKUP_FILE = "customer_lookup.csv"
+LOOKUP_FILE = APP_DIR / "customer_lookup.csv"
 
 
 @st.cache_data
