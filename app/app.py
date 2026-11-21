@@ -136,7 +136,7 @@ furthest from the model's average, computed with SHAP (Lundberg & Lee, 2017).
 # ----------------------------------------------------------------- lookup UI
 st.sidebar.header("Existing customer")
 if load_lookup() is None:
-    st.sidebar.caption(f"Customer lookup unavailable: `{LOOKUP_FILE}` not found.")
+    st.sidebar.caption("Customer lookup is not available in the online version; use the form or an example borrower.")
 else:
     cid = st.sidebar.text_input("Customer ID", key="cid",
                                 placeholder="Paste a customer ID from the test set")
