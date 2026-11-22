@@ -128,8 +128,9 @@ rejecting one that would have repaid loses only the interest. Because the first
 error costs roughly {B['lgd'] / B['m_median']:.1f} times the second, the
 threshold sits well below 0.5.
 
-The third output lists the features that moved this particular prediction
-furthest from the model's average, computed with SHAP (Lundberg & Lee, 2017).
+The explanation shows which factors moved this particular assessment up or
+down the most, compared with an average applicant, computed with SHAP
+(Lundberg & Lee, 2017).
         """
     )
 
@@ -297,11 +298,56 @@ HISTORY_COLS = ("prev_amount_mean", "prev_amount_max", "prev_late_rate",
                 "prev_days_late_mean", "prev_termdays_mean", "days_since_last_loan")
 
 
+LABELS = {
+    "loanamount": "Loan amount",
+    "termdays": "Loan term",
+    "interest_margin": "Interest rate",
+    "age_at_approval": "Age",
+    "prev_loan_count": "Number of prior loans",
+    "prev_late_rate": "Share of prior loans repaid late",
+    "prev_days_late_mean": "Average days late on prior loans",
+    "prev_amount_mean": "Average prior loan amount",
+    "prev_amount_max": "Largest prior loan",
+    "prev_termdays_mean": "Average prior loan term",
+    "days_since_last_loan": "Days since last loan",
+    "was_referred": "Referred by an existing customer",
+    "has_history": "Has prior loans with the lender",
+    "has_demographics": "Personal details on record",
+    "bank_account_type": "Bank account type",
+    "bank_name_clients": "Bank",
+    "employment_status_clients": "Employment status",
+    "level_of_education_clients": "Education",
+    "region": "Region",
+}
+NAIRA = {"loanamount", "prev_amount_mean", "prev_amount_max"}
+DAYS = {"termdays", "prev_termdays_mean", "days_since_last_loan"}
+YES_NO = {"was_referred", "has_history", "has_demographics"}
+
+
 def show_value(feature, v):
-    """Readable value for the explanation; missing values are named, not 'nan'."""
-    if isinstance(v, float) and np.isnan(v):
+    """Plain-language value for the explanation; missing values are named, not 'nan'."""
+    if v is None or (isinstance(v, float) and np.isnan(v)):
         return "no prior loans" if feature in HISTORY_COLS else "not recorded"
-    return f"{v:.4g}" if isinstance(v, float) else v
+    if feature in YES_NO:
+        return "Yes" if int(v) == 1 else "No"
+    if feature in NAIRA:
+        return f"₦{float(v):,.0f}"
+    if feature in DAYS:
+        return f"{float(v):,.0f} days"
+    if feature == "prev_late_rate":
+        return f"{float(v):.0%}"
+    if feature == "interest_margin":
+        return f"{float(v):.1%}"
+    if feature == "prev_days_late_mean":
+        d = float(v)
+        if d < 0:
+            return f"{abs(d):.1f} days early on average"
+        return f"{d:.1f} days late on average" if d > 0 else "on time"
+    if feature == "age_at_approval":
+        return f"{float(v):.0f} years"
+    if feature == "prev_loan_count":
+        return f"{float(v):.0f}"
+    return str(v)
 
 
 if submitted:
@@ -374,37 +420,57 @@ if submitted:
             sv = sv[:, :, 1]
         sv = sv[0]
 
-        contrib = (pd.DataFrame({"Feature": FEATURES,
-                                 "Contribution": sv,
-                                 "Value": [values[c] for c in FEATURES]})
-                   .assign(abs_c=lambda d: d["Contribution"].abs())
-                   .sort_values("abs_c", ascending=False)
-                   .head(3)
-                   .drop(columns="abs_c")
-                   .reset_index(drop=True))
+        expl = (pd.DataFrame({
+                    "Factor": [LABELS.get(c, c) for c in FEATURES],
+                    "Value": [str(show_value(c, values[c])) for c in FEATURES],
+                    "shap": sv})
+                .assign(size=lambda d: d["shap"].abs())
+                .sort_values("size", ascending=False)
+                .reset_index(drop=True))
+        expl["Effect"] = np.where(expl["shap"] > 0, "Raises risk", "Lowers risk")
 
-        for _, r in contrib.iterrows():
-            direction = "increases" if r["Contribution"] > 0 else "reduces"
-            val = show_value(r["Feature"], r["Value"])
-            st.markdown(
-                f"**{r['Feature']}** = `{val}` — {direction} estimated risk "
-                f"({r['Contribution']:+.3f} in log-odds)"
+        st.caption("The three factors that most influenced this assessment:")
+        for _, r in expl.head(3).iterrows():
+            verb = "raises" if r["shap"] > 0 else "lowers"
+            st.markdown(f"- **{r['Factor']}**: {r['Value']} — {verb} the estimated risk")
+
+        import altair as alt
+        top = expl.head(10)
+        span = max(float(top["size"].max()), 1e-9) * 1.05
+        bars = (
+            alt.Chart(top)
+            .mark_bar(cornerRadius=3, height=16)
+            .encode(
+                y=alt.Y("Factor:N", sort=list(top["Factor"]), title=None,
+                        axis=alt.Axis(labelLimit=280, ticks=False, domain=False)),
+                x=alt.X("shap:Q", title="◀ lowers risk" + "\u00a0" * 24 + "raises risk ▶",
+                        scale=alt.Scale(domain=[-span, span]),
+                        axis=alt.Axis(labels=False, ticks=False, grid=False)),
+                color=alt.Color("Effect:N",
+                                scale=alt.Scale(domain=["Raises risk", "Lowers risk"],
+                                                range=["#e34948", "#2a78d6"]),
+                                legend=alt.Legend(orient="top", title=None)),
+                tooltip=[alt.Tooltip("Factor:N"),
+                         alt.Tooltip("Value:N", title="This applicant"),
+                         alt.Tooltip("Effect:N")],
             )
+        )
+        zero = (alt.Chart(pd.DataFrame({"x": [0]}))
+                .mark_rule(color="#8a8a85").encode(x="x:Q"))
+        st.markdown("**How each factor moved this assessment** (ten largest)")
+        st.altair_chart((bars + zero).properties(height=34 * len(top) + 40)
+                        .configure_view(strokeWidth=0),
+                        use_container_width=True)
 
-        with st.expander("All feature contributions"):
-            full = (pd.DataFrame({"Feature": FEATURES,
-                                  "Contribution": sv,
-                                  "Value": [str(show_value(c, values[c])) for c in FEATURES]})
-                    .assign(abs_c=lambda d: d["Contribution"].abs())
-                    .sort_values("abs_c", ascending=False)
-                    .drop(columns="abs_c"))
-            st.dataframe(full, use_container_width=True, hide_index=True)
+        with st.expander("Show as a table"):
+            st.dataframe(expl[["Factor", "Value", "Effect"]],
+                         use_container_width=True, hide_index=True)
 
     except Exception as e:
         st.warning(f"Explanation unavailable: {e}")
 
     st.caption(
-        "Contributions are SHAP values in log-odds units. They describe how the "
-        "model uses each feature for this application; they do not establish a "
-        "causal relationship with repayment behaviour."
+        "Longer bars mean a stronger influence on this applicant's estimated risk, "
+        "compared with an average applicant (computed with SHAP). They show how the "
+        "model reached its result; they do not show what causes late repayment."
     )
